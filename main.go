@@ -58,7 +58,11 @@ func DownloadAndDumpEvents(blockID string) error {
 	}
 
 	for _, event := range record.Events {
-		fmt.Println(event)
+		fmt.Printf("BlockID\t\t : %s\nTransactionID\t : %s\nTransactionIndex : %d\nEventIndex\t : %d\n",
+			blockID, event.TransactionID, event.TransactionIndex, event.EventIndex)
+		fmt.Printf("Event Type\t: %s\n", event.Type)
+		fmt.Printf("Event Payload\t: %s\n\n", string(event.Payload))
+
 	}
 	return nil
 }
