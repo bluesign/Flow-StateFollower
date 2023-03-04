@@ -3,15 +3,15 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/bluesign/stateFollower/websocket"
 	"io"
 	"log"
+	"net/http"
 	"time"
 
 	gcloud "cloud.google.com/go/storage"
-	"github.com/onflow/flow-go-sdk/client"
-
 	"github.com/fxamacker/cbor/v2"
-
+	client "github.com/onflow/flow-go-sdk/access/grpc"
 	"github.com/onflow/flow-go/engine/execution/computation/computer/uploader"
 	"github.com/onflow/flow-go/model/flow"
 	"google.golang.org/api/option"
@@ -19,11 +19,9 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
-func DownloadAndDumpEvents(blockID string) error {
+func DownloadAndDumpEvents(bucket *gcloud.BucketHandle, blockID string, height uint64) error {
 
 	//google cloud bucket
-	gcloudClient, _ := gcloud.NewClient(context.Background(), option.WithoutAuthentication())
-	bucket := gcloudClient.Bucket("flow_public_mainnet18_execution_state")
 	object := bucket.Object(fmt.Sprintf("%s.cbor", blockID))
 
 	reader, err := object.NewReader(context.Background())
@@ -58,37 +56,55 @@ func DownloadAndDumpEvents(blockID string) error {
 	}
 
 	for _, event := range record.Events {
-		fmt.Printf("BlockID\t\t : %s\nTransactionID\t : %s\nTransactionIndex : %d\nEventIndex\t : %d\n",
-			blockID, event.TransactionID, event.TransactionIndex, event.EventIndex)
+		fmt.Printf("BlockID\t\t : %s - %d \nTransactionID\t : %s\nTransactionIndex : %d\nEventIndex\t : %d\n",
+			blockID, height, event.TransactionID, event.TransactionIndex, event.EventIndex)
 		fmt.Printf("Event Type\t: %s\n", event.Type)
-		fmt.Printf("Event Payload\t: %s\n\n", string(event.Payload))
+		//	fmt.Printf("Event Payload\t: %s\n\n", string(event.Payload))
+		server.Publish(string(event.Type), event.Payload)
 
 	}
 	return nil
 }
 
+var server = &websocket.Server{Subscriptions: make(websocket.Subscription)}
+
 func main() {
-	flow, err := client.New("access-001.mainnet18.nodes.onflow.org:9000", grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
+
+	go func() {
+		log.SetFlags(log.Lshortfile)
+
+		handler := websocket.NewHandler(server)
+		http.HandleFunc("/socket", handler.HandleWS)
+		if err := http.ListenAndServeTLS(":443", "fullchain.pem", "privkey.pem", nils); err != nil {
+			panic(err)
+		}
+	}()
+
+	flow, errGrpc := client.NewBaseClient("access-001.mainnet22.nodes.onflow.org:9000", grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if errGrpc != nil {
 		log.Fatal("Failed to establish connection with the Access API")
 	}
 
-	last_block_height_processed := uint64(31735955 + 10000) //spork start + 10000 to skip empty ones
+	latestBlock, _ := flow.GetLatestBlock(context.Background(), true)
+
+	lastBlockHeightProcessed := uint64(latestBlock.Height) //spork start + 10000 to skip empty ones
+	gcloudClient, _ := gcloud.NewClient(context.Background(), option.WithoutAuthentication())
+	bucket := gcloudClient.Bucket("flow_public_mainnet22_execution_state")
 
 	for {
 		block, _ := flow.GetLatestBlock(context.Background(), true)
 
-		for i := last_block_height_processed + 1; i <= block.Height; i++ {
+		for i := lastBlockHeightProcessed + 1; i <= block.Height; i++ {
 			log.Printf("Processing block height: %d\n", i)
 			header, _ := flow.GetBlockByHeight(context.Background(), i)
 
-			last_block_height_processed = i
+			lastBlockHeightProcessed = i
 			if len(header.CollectionGuarantees) == 0 {
 				//has no collection
 				continue
 			}
 			log.Println(header.ID.String())
-			err := DownloadAndDumpEvents(header.ID.String())
+			err := DownloadAndDumpEvents(bucket, header.ID.String(), i)
 			if err != nil {
 				log.Fatal(err)
 			}

@@ -1,6 +1,16 @@
 # Flow State Follower
 
+
+```json
+{
+  "action": "subscribe",
+  "topic": "A.f919ee77447b7497.FlowFees.FeesDeducted"
+}
+```
+
+
 sample output:
+
 ```
 BlockID          : 3750447f8042a9ed4b30d9b549acf2947d80a9e85159c1311f8c5e457d36267b
 TransactionID    : 67602966b2ec3bc14612377ef0d46d806b5a36c12041afdbef8ce03ac23aebd5
