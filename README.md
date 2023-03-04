@@ -7,7 +7,7 @@ Note: Only events implemented so far.
 ```json
 {
   "action": "subscribe",
-  "topic": "A.f919ee77447b7497.FlowFees.FeesDeducted"
+  "topic": "A.1e3c78c6d580273b.LNVCT.Withdraw"
 }
 ```
 
