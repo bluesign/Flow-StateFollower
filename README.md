@@ -2,6 +2,8 @@
 
 Note: Only events implemented so far. 
 
+use https://websocketking.com to test.
+
 #### subscribe to event 
 
 ```json
